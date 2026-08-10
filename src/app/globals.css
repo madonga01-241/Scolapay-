@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-ink font-sans antialiased;
+  }
+  h1, h2, h3 {
+    @apply font-display;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+}
+
+@layer components {
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .status-pill--paid { @apply bg-success/10 text-success; }
+  .status-pill--due { @apply bg-warning/10 text-warning; }
+  .status-pill--late { @apply bg-danger/10 text-danger; }
+
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white p-6 shadow-sm;
+  }
+  .btn-primary {
+    @apply rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-light disabled:opacity-50;
+  }
+  .input {
+    @apply w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-ink placeholder:text-slate-400 focus:border-brand focus:outline-none;
+  }
+}

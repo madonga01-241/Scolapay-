@@ -1,0 +1,234 @@
+// Stratégie multi-tenant retenue : DB partagée avec colonne `schoolId` (tenant_id)
+// sur chaque table métier + isolation stricte au niveau applicatif (middleware Prisma).
+// Justification : coût d'infra faible pour démarrer, migrations simples, suffisant
+// tant que le nombre d'écoles reste < quelques milliers. Une bascule vers des schémas
+// séparés par école reste possible plus tard sans changer le modèle logique.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN   // équipe ScolaPay
+  SCHOOL_ADMIN  // direction / admin école
+  ACCOUNTANT    // comptable école
+  PARENT        // parent d'élève
+}
+
+enum PaymentMethod {
+  MOBILE_MONEY
+  BANK_TRANSFER
+  CASH
+  CARD
+}
+
+// Chaque agrégateur Mobile Money a ses propres API/webhooks : on isole le
+// provider utilisé sans complexifier PaymentMethod, qui reste la distinction
+// "haut niveau" (Mobile Money vs virement vs espèces vs carte).
+enum MobileMoneyProvider {
+  WAVE
+  ORANGE_MONEY
+  MOBICASH
+  AIRTEL_MONEY
+  MTN_MONEY
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum InstallmentStatus {
+  UPCOMING
+  DUE
+  LATE
+  PAID
+}
+
+enum ReminderChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum ReminderStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+model School {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique // sous-domaine ou identifiant public
+  // FCFA désigne deux devises distinctes selon la zone (même si le nom
+  // "FCFA" est utilisé dans les deux) : "XOF" pour l'UEMOA (Sénégal, Côte
+  // d'Ivoire, Bénin, Burkina Faso, Mali, Niger, Togo, Guinée-Bissau) et
+  // "XAF" pour la CEMAC/CEEAC (Cameroun, Gabon, Congo, Tchad, RCA, Guinée
+  // équatoriale). Pas de valeur par défaut : chaque école doit déclarer
+  // explicitement sa zone à la création pour éviter toute confusion.
+  currency    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users        User[]
+  classes      Classroom[]
+  students     Student[]
+  parents      ParentProfile[]
+  installments Installment[]
+  payments     Payment[]
+  reminders    Reminder[]
+  merchantAccounts MerchantAccount[]
+
+  @@map("schools")
+}
+
+// Chaque école ouvre elle-même son compte marchand auprès de(s) opérateur(s)
+// Mobile Money disponible(s) dans sa localité (pas de compte marchand
+// centralisé côté ScolaPay, faute de représentation dans tous les pays).
+// Une école peut avoir plusieurs comptes (ex. Wave + Orange Money en même
+// temps), mais un seul compte actif par provider.
+model MerchantAccount {
+  id           String              @id @default(cuid())
+  schoolId     String
+  school       School              @relation(fields: [schoolId], references: [id])
+  provider     MobileMoneyProvider
+  merchantId   String              // identifiant marchand fourni par l'opérateur
+  // Secret d'API : stocké chiffré en base (chiffrement applicatif avant
+  // écriture, jamais en clair) ou, mieux, référence à un secret manager
+  // externe (ex. Vercel Environment Variables/Secret, AWS Secrets Manager).
+  // Le champ ci-dessous ne doit JAMAIS être renvoyé tel quel par une API.
+  encryptedApiSecret String
+  active       Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+
+  @@unique([schoolId, provider])
+  @@index([schoolId])
+  @@map("merchant_accounts")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  schoolId     String?  // null pour SUPER_ADMIN
+  school       School?  @relation(fields: [schoolId], references: [id])
+  createdAt    DateTime @default(now())
+
+  parentProfile ParentProfile?
+
+  @@index([schoolId])
+  @@map("users")
+}
+
+model Classroom {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+  name     String // ex: "CM2 A"
+  level    String // ex: "Primaire", "Collège"
+
+  students Student[]
+
+  @@index([schoolId])
+  @@map("classrooms")
+}
+
+model ParentProfile {
+  id       String @id @default(cuid())
+  userId   String @unique
+  user     User   @relation(fields: [userId], references: [id])
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+  fullName String
+  phone    String
+
+  children Student[]
+
+  @@index([schoolId])
+  @@map("parent_profiles")
+}
+
+model Student {
+  id          String   @id @default(cuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  classroomId String
+  classroom   Classroom @relation(fields: [classroomId], references: [id])
+  parentId    String
+  parent      ParentProfile @relation(fields: [parentId], references: [id])
+  fullName    String
+  monthlyFee  Int      // montant en FCFA (unité entière, pas de sous-unité en pratique)
+  active      Boolean  @default(true)
+
+  installments Installment[]
+
+  @@index([schoolId])
+  @@index([classroomId])
+  @@index([parentId])
+  @@map("students")
+}
+
+// Une échéance = un mois de scolarité dû pour un élève
+model Installment {
+  id        String             @id @default(cuid())
+  schoolId  String
+  school    School             @relation(fields: [schoolId], references: [id])
+  studentId String
+  student   Student            @relation(fields: [studentId], references: [id])
+  period    String             // format "2026-09" (année-mois)
+  amountDue Int
+  dueDate   DateTime
+  status    InstallmentStatus  @default(UPCOMING)
+
+  payments  Payment[]
+  reminders Reminder[]
+
+  @@unique([studentId, period]) // une seule échéance par élève et par mois
+  @@index([schoolId, status])
+  @@map("installments")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  schoolId        String
+  school          School        @relation(fields: [schoolId], references: [id])
+  installmentId   String
+  installment     Installment   @relation(fields: [installmentId], references: [id])
+  amount          Int
+  method          PaymentMethod
+  mobileMoneyProvider MobileMoneyProvider? // renseigné uniquement si method = MOBILE_MONEY
+  status          PaymentStatus @default(PENDING)
+  providerRef     String?       // référence transaction Mobile Money / carte
+  recordedByUserId String?      // pour paiement manuel (espèces) saisi par un comptable
+  receiptUrl      String?
+  createdAt       DateTime      @default(now())
+
+  @@index([schoolId, status])
+  @@index([installmentId])
+  @@map("payments")
+}
+
+model Reminder {
+  id            String          @id @default(cuid())
+  schoolId      String
+  school        School          @relation(fields: [schoolId], references: [id])
+  installmentId String
+  installment   Installment     @relation(fields: [installmentId], references: [id])
+  channel       ReminderChannel
+  status        ReminderStatus  @default(QUEUED)
+  scheduledFor  DateTime
+  sentAt        DateTime?
+
+  @@index([schoolId, status])
+  @@map("reminders")
+}
