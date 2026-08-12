@@ -4,6 +4,7 @@ import { getStudentDetail } from "@/lib/student-detail";
 import { formatFcfaAmount } from "@/lib/currency";
 import { RecordPaymentForm } from "./record-payment-form";
 
+export const dynamic = "force-dynamic";
 const STATUS_LABEL: Record<string, string> = {
   UPCOMING: "À venir",
   DUE: "En attente",
