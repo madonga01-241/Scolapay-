@@ -4,6 +4,7 @@ import { formatFcfaAmount } from "@/lib/currency";
 import { SignOutButton } from "@/components/sign-out-button";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
 function formatPeriod(period: string) {
   const [year, month] = period.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("fr-FR", {
