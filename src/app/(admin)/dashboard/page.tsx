@@ -1,7 +1,7 @@
 import { requireTenantContext } from "@/lib/tenant";
 import { getUnpaidDashboard } from "@/lib/dashboard";
 import { formatFcfaAmount } from "@/lib/currency";
-import { SignOutButton } from "../sign-out-button";
+import { SignOutButton } from "@/components/sign-out-button";
 import Link from "next/link";
 
 function formatPeriod(period: string) {
