@@ -3,6 +3,7 @@ import { getParentChildren } from "@/lib/parent-view";
 import { formatFcfaAmount } from "@/lib/currency";
 import { SignOutButton } from "@/components/sign-out-button";
 
+export const dynamic = "force-dynamic";
 const STATUS_LABEL: Record<string, string> = {
   UPCOMING: "À venir",
   DUE: "À régler",
