@@ -5,7 +5,7 @@ import { requireTenantContext, TenantAccessError } from "@/lib/tenant";
 import { initiateMobileMoneyPayment } from "@/lib/payments/service";
 
 const schema = z.object({
-  installmentId: z.string().cuid(),
+  installmentId: z.string().min(1),
   provider: z.nativeEnum(MobileMoneyProvider),
   phone: z.string().min(8),
 });
