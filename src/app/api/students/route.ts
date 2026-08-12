@@ -6,8 +6,8 @@ import { requireTenantContext, requireRole, TenantAccessError } from "@/lib/tena
 
 const createStudentSchema = z.object({
   fullName: z.string().min(2),
-  classroomId: z.string().cuid(),
-  parentId: z.string().cuid(),
+  classroomId: z.string().min(1),
+  parentId: z.string().min(1),
   monthlyFeeFcfa: z.number().int().positive(), // montant en FCFA, unité entière
 });
 
