@@ -4,7 +4,7 @@ import { requireTenantContext, TenantAccessError } from "@/lib/tenant";
 import { recordManualPayment } from "@/lib/payments/service";
 
 const schema = z.object({
-  installmentId: z.string().cuid(),
+  installmentId: z.string().min(1),
   amount: z.number().int().positive(),
   method: z.enum(["CASH", "BANK_TRANSFER"]),
 });
