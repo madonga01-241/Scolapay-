@@ -1,7 +1,7 @@
 import { requireTenantContext } from "@/lib/tenant";
 import { getParentChildren } from "@/lib/parent-view";
 import { formatFcfaAmount } from "@/lib/currency";
-import { SignOutButton } from "../sign-out-button";
+import { SignOutButton } from "@/components/sign-out-button";
 
 const STATUS_LABEL: Record<string, string> = {
   UPCOMING: "À venir",
@@ -83,7 +83,7 @@ export default async function ParentPortalPage() {
                   </tbody>
                 </table>
               </div>
-            </section>
+            </section> 
           );
         })}
       </div>
