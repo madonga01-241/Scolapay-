@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function NewSchoolPage() {
+export default function NewSchoolForm() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -21,14 +21,21 @@ export default function NewSchoolPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, slug, currency }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setError(`Statut ${res.status}: ${text.slice(0, 300)}`);
+        return;
+      }
       if (!res.ok) {
-        setError(data.error ?? "Erreur inconnue");
+        setError(data.error ?? `Erreur inconnue (statut ${res.status})`);
         return;
       }
       router.push(`/admin/schools`);
-    } catch {
-      setError("Erreur réseau");
+    } catch (err: any) {
+      setError(`Exception: ${err?.message ?? String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -67,7 +74,7 @@ export default function NewSchoolPage() {
             <option value="XAF">XAF (CEMAC)</option>
           </select>
         </div>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-red-600 text-sm break-words">{error}</p>}
         <button
           type="submit"
           disabled={loading}
@@ -78,4 +85,4 @@ export default function NewSchoolPage() {
       </form>
     </main>
   );
-            }
+}
