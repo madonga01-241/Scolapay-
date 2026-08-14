@@ -4,6 +4,8 @@ import { Role } from "@prisma/client";
 import { redirect } from "next/navigation";
 import NewSchoolForm from "./NewSchoolForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function NewSchoolPage() {
   const session = await getServerSession(authOptions);
 
